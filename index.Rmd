@@ -1,0 +1,278 @@
+---
+title: "Motor Trends Dataset Analysis"
+author: "Richard Nacianceno"
+date: "6/1/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Environment and Setup
+
+```{r Environment, message=FALSE}
+library(tidyverse)
+library(reshape2)
+library(gapminder)
+library(hablar)
+```
+
+## Dataset History
+
+According to the help documentation ?mtcars: "The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models)."  
+
+Description of variables:
+
+1. mpg: Miles/(US) gallon
+2. cyl: Number of cylinders
+3. disp: Displacement (cu.in.)
+4. hp: Gross horsepower
+5. drat: Rear axle ratio
+6. wt: Weight (1000 lbs)
+7. qsec: 1/4 mile time
+8. vs: 	Engine (0 = V-shaped, 1 = straight)
+9. am: Transmission (0 = automatic, 1 = manual)
+10. gear: Number of forward gears
+11. carb: Number of carburetors
+
+## Exploratory Data Analysis
+
+### Formulate our question(s)
+
+1. Is an automatic or manual transmission better for MPG?
+2. Quantify the MPG difference between automatic and manual transmissions?
+
+### Load Data
+```{r load}
+data(mtcars)
+```
+
+### Check the Packaging
+
+Poke at the dataset. Ensure there are no errors on the given dataset. Check the top and bottom of the datasets.   
+```{r head and tail}
+head(mtcars)
+tail(mtcars)
+# view(mtcars)
+```
+Keep poking at it.  
+```{r obs}
+nrow(mtcars)
+names(mtcars)
+```
+
+```{r variables}
+ncol(mtcars)
+rownames(mtcars)
+```
+
+### Run str()
+
+This is a fast operation that provides us with the number of obersvations and variables, with their respective datatypes.  We can quickly analyze opportunities that we can see using str(). 
+```{r datatype}
+str(mtcars)
+```
+A few opportunities I see in the above output are as follows:
+
+* The disp and hp are much higher compared to the remaining variables and rescaling could help with the analysis.  
+* Variables cyl, vs, am, gear, carb are **potential** factor types
+
+Using str() provides us with a quick and powerful way in analyzing our data and making it more tidy.
+
+```{r change datatype}
+mtcars <- mtcars %>% convert(fct(cyl,vs, am, gear, carb))
+```
+
+### Missing Data Analysis
+
+Analyze missing data and have a strategy in imputing missing datasets. 
+```{r NA analysis}
+naAnalysis <- mtcars %>%
+    purrr::map_df(function(x) round(mean(is.na(x)),digits = 2)*100) %>%
+    gather(EVType, naAverage)
+naAnalysis %>% ggplot(aes(x = EVType, y = naAverage)) %>% +
+  geom_point(aes(reorder(EVType, naAverage))) + theme(axis.text.x =
+              element_text(angle = 90, hjust = .1)) + labs(x = "Event Type", 
+              y = "NA Average  (%)", title = "Missing Data Analysis")
+```
+
+Based on our analysis there are no missing data in all our variables and no need to impute missing data.  
+
+### Validate with at least one external data source
+
+[According to the Buereau of Transportation](https://www.bts.gov/content/average-fuel-efficiency-us-light-duty-vehicles), the average fuel efficiency for ligh-duty vehicle-Passenger car in 2017 is 39.4 mpg.  
+
+```{r mpg summary}
+summary(mtcars$mpg)
+```
+
+Above chart, we zoomed in on our data using quantile function that shows our 39.4 mpg (2017) not part of the distribution and a complete outlier if we are to add it in our dataset. There are many technological advances and changes in environmental policies that occurred between 1973 to 2017, such advancement is the lighter metals and safety equipment to increase fuel efficiency and decrease risk in accident.  There are many more advances in the field electrification of vehicles that increases mpg-e(equivalent) and driverless vehicles (off-topic).
+
+After 44 years, the advancement in fuel efficiency increased at an average rate of .44 mpg each year for 44 years or 19.31/44 years (note: 39.4-20.09=19.31). **This is pretty bad.** 
+
+Tesla Model S on average has 115 city /107 highway mpg-e.   
+
+Let's review the quantile:
+
+```{r mtcar quantile}
+quantile(mtcars$mpg, seq(0,1,0.1))
+```
+Knowing the national average-mpg, gives us insight to the following:
+
+* Right magnitude (mpg and not kilometers per gallon)
+* The max MPG in our data set is at 33.90 vs. the mean of 39.4 mpg in 2017.
+* The max outlier in year 1973 is less than the mean in 2017.  
+
+Continue on the EDA...
+
+### Try a simple solution
+
+**Is an automatic or manual transmission better for MPG?**
+
+Data set description of "am", from ?mtcars: 
+
+* 0 = automatic transmission
+* 1 = manual transmission
+```{r Mean of Each Transmission}
+amMean <-summarise(group_by(mtcars, AM=as.factor(am)),MN=mean(mpg))
+mpgMean <- mean(mtcars$mpg)
+amMean
+```
+
+```{r summary of each}
+by(mtcars$mpg, INDICES = mtcars$am, summary)
+```
+**Manual transmission** has a higher min and max compared to **Automatic Transmission** in our dataset. Let's create a boxplot to visualize our findings.  
+
+```{r boxplot}
+am_label <- c("AT (n=19)", "MT (n=13)")
+names(am_label) <- c("0","1")
+g<-mtcars %>% ggplot(aes(y=mpg))
+g+geom_boxplot(alpha=.3)+
+  facet_grid(~mtcars$am, labeller = labeller(am = am_label))+
+  geom_hline(aes(yintercept = mean(mpg), col="red"))+
+  theme(legend.position = "none")
+```
+Transmission Analysis:
+
+* Mean of the total mpg = `r mpgMean`, in horizontal red line. 
+* 0 or automatic transmission mean = `r amMean[1,2]`
+* 1 or manual transmission mean = `r amMean[2,2]`
+* The mean of total mpg is greater than Automatic Transmission mean or **`r mpgMean` >  `r amMean[1,2]`**
+* The mean of the manual transmission is greater than the mean of the total mpg and is greater than the automatic transmission mpg or **`r amMean[2,2]` > `r mpgMean` > `r amMean[1,2]`**.
+
+Let's review the counts of each transmission:
+
+```{r Count of Transmission}
+by_am <- mtcars %>% group_by(am)
+summarise(by_am, count = n())
+```
+
+Answer:
+
+Manual Transmission is better than automatic transmission in fuel efficiency. We do not know enough based on this analysis.  We need to dig deeper.  
+
+###  Quantify the MPG difference between automatic and manual transmissions?
+
+Manual Transmission mpg is 7.24 mpg higher than Automatic manual transmission mpg.  We do not know what percentage belongs to AM in the difference between MT and AT.  We need to dig deeper in our analysis. 
+
+```{r difference}
+am_diff <-amMean[2,2]-amMean[1,2]
+am_diff
+```
+Manual Transmission mpg is 7.24 mpg higher than Automatic manual transmission mpg.  We do not know what percentage belongs to AM in the difference between MT and AT.  We need to dig deeper in our analysis. 
+
+### Deep Dive and Challenge "simple solution"
+
+Look into all variables and see if any will help our anlysis:
+
+Hypothesis:
+
+H0: AT mpg = MT mpg; There is no difference in fuel efficiency between Automatic transmission and Manual Transmission
+
+Ha: AT mpg != MT mpg
+
+```{r t.test}
+t.test(mtcars$mpg~factor(mtcars$am), paired = FALSE, var.equal = TRUE)
+```
+There is a .0285% chance that our null hypothesis = at mpg = mt mpg, therefore, we reject the null hypothesis. The mean of AT != mean of MT. 
+
+Let's check out the linear model:
+
+```{r linear model}
+fit <- lm(data = mtcars, mpg~factor(am))
+summary(fit)
+```
+
+As we said before we rejected the null hypothesis and in this linear model the following are as follows:
+
+1. Automatic Transmission has a mean of 17.147
+2. The 7.245 is the estimated change in the intercept of the linear relatiohship between Manual Transmission mpg1 and Automatic Transmission mpg0, going from Automatic to Manual Transmission.  Also, `r fit$coef[1]` + `r fit$coef[2]` = the mean(Manual Transmission) = `r fit$coef[1] + fit$coef[2]`
+3. The adjusted r-squared .338 which means that our model only explains 33.8% of the variance. 
+
+Let us review the plot and see if it is a good fit.
+
+```{r}
+rm(list=ls())
+attach(mtcars)
+fit <- lm(am~mpg)
+plot(mpg,am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
+abline(fit, col="blue")
+lines(lowess(mpg, am), type="l", col="red")
+```
+
+The above linear model is not a good fit the blue bar crosses the below 0 and above 1 and the redline crosses above 1. We need to find a model that fits out data.
+
+```{r}
+fit <- glm(data = mtcars, factor(am)~mpg, family = binomial)
+plot(mpg,am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
+lines(mpg, predict(fit, type = "response"), col="red")
+```
+
+This model is not a good fit.  It is predicting both 0 and 1 as their respective mean. Let us look at the predict function as follows:
+```{r}
+predict(fit)
+```
+
+We need a log regression model under glm function. 
+
+```{r}
+fit2 <- glm(data=mtcars, factor(am)~mpg, family = "binomial")
+summary(fit2)
+```
+
+
+```{r}
+ggplot(data = mtcars, aes(mpg, factor(am)))+geom_point()+geom_smooth(method = "glm", method.args=list(family="binomial"), formula = mtcars$am~mtcars$mpg, aes(weight=cyl))
+
+```
+
+```{r}
+predict(fit)
+```
+
+
+1. mpg: Miles/(US) gallon
+2. cyl: Number of cylinders
+3. disp: Displacement (cu.in.)
+4. hp: Gross horsepower
+5. drat: Rear axle ratio
+6. wt: Weight (1000 lbs)
+7. qsec: 1/4 mile time
+8. vs: 	Engine (0 = V-shaped, 1 = straight)
+9. am: Transmission (0 = automatic, 1 = manual)
+10. gear: Number of forward gears
+11. carb: Number of carburetors
+
+```{r}
+
+```
+
+
+```{r}
+#heatmap(as.matrix(mtcars))
+```
+
