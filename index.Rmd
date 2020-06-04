@@ -1,23 +1,18 @@
 ---
-title: "Motor Trends Dataset Analysis"
+title: "1973-1974 Motor Trends Dataset Analysis"
 author: "Richard Nacianceno"
-date: "6/1/2020"
-output:
-  html_document: default
-  pdf_document: default
+date: "6/4/2020"
+output: html_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## Environment and Setup
 
 ```{r Environment, message=FALSE}
 library(tidyverse)
 library(reshape2)
-library(gapminder)
 library(hablar)
+library(RColorBrewer)
+library(plotly)
+library(ggbiplot) # installation library(devtools); install_github("vqv/ggbiplot")
+sessionInfo()
 ```
 
 ## Dataset History
@@ -83,7 +78,8 @@ A few opportunities I see in the above output are as follows:
 Using str() provides us with a quick and powerful way in analyzing our data and making it more tidy.
 
 ```{r change datatype}
-mtcars <- mtcars %>% convert(fct(cyl,vs, am, gear, carb))
+
+str(mtcars)
 ```
 
 ### Missing Data Analysis
@@ -105,28 +101,84 @@ Based on our analysis there are no missing data in all our variables and no need
 
 [According to the Buereau of Transportation](https://www.bts.gov/content/average-fuel-efficiency-us-light-duty-vehicles), the average fuel efficiency for ligh-duty vehicle-Passenger car in 2017 is 39.4 mpg.  
 
+Also, we added another variable called countryGroup in mtcars which shows the country or continent they were made (personal assumption).
+
 ```{r mpg summary}
-summary(mtcars$mpg)
+countryGroup <-c(rep("JAPAN", 3), rep("USA",4), rep("EUROPE", 7),rep("USA",3), "EUROPE", rep("JAPAN", 3), rep("USA",4), rep("EUROPE", 3), "USA", rep("EUROPE", 3))
+mtcars$country <- countryGroup
+quantile(mtcars$mpg, seq(0,1,0.1))
 ```
 
-Above chart, we zoomed in on our data using quantile function that shows our 39.4 mpg (2017) not part of the distribution and a complete outlier if we are to add it in our dataset. There are many technological advances and changes in environmental policies that occurred between 1973 to 2017, such advancement is the lighter metals and safety equipment to increase fuel efficiency and decrease risk in accident.  There are many more advances in the field electrification of vehicles that increases mpg-e(equivalent) and driverless vehicles (off-topic).
+Above table, we zoomed-in our data using quantile function. If we are to add external dataset of **39.4 mpg** in mtcars dataset, this becomes the new max and a complete outlier. 
+
+There are many technological advances and changes in environmental policies that occurred between 1973 to 2017. Some advancements are lighter metals and safety equipment to increase fuel efficiency and decrease risk in accident.  
+
+There are many more advances in the field of vehicles-electrification that increases mpg-e(equivalent) and driverless vehicles (off-topic).
 
 After 44 years, the advancement in fuel efficiency increased at an average rate of .44 mpg each year for 44 years or 19.31/44 years (note: 39.4-20.09=19.31). **This is pretty bad.** 
 
-Tesla Model S on average has 115 city /107 highway mpg-e.   
+Tesla Model S on average has 115 city /107 highway mpg-e.  
 
-Let's review the quantile:
-
-```{r mtcar quantile}
-quantile(mtcars$mpg, seq(0,1,0.1))
-```
 Knowing the national average-mpg, gives us insight to the following:
 
 * Right magnitude (mpg and not kilometers per gallon)
 * The max MPG in our data set is at 33.90 vs. the mean of 39.4 mpg in 2017.
-* The max outlier in year 1973 is less than the mean in 2017.  
+* The max outlier in year 1973 is less than the mean in 2017. 
+* Adding the country of origin will provide us a better insight how these are group together.
 
 Continue on the EDA...
+
+### Principle Component Analysis
+
+Let's review the relationship of variables to our vehicles:
+
+```{r Principle Componnet Analysis}
+pca <- prcomp(mtcars[, c(1:7,10,11)],center = TRUE, scale. = TRUE)
+pca_x_df<- data.frame(pca[["x"]])
+pca_name <- colnames(pca_x_df)
+pca.var <- pca$sdev^2
+pca.var.per <- round(pca.var/sum(pca.var)*100, 1)
+pca_df <- data.frame(name=pca_name,pca_percent =pca.var.per)
+pca_df %>% ggplot(aes(x=name, y=pca_percent)) + geom_col()
+```
+
+```{r PCA Summary}
+summary(pca)
+```
+
+```{r Plot PCA}
+ggplotly(ggbiplot(pca, labels=rownames(mtcars), ellipse = TRUE, groups = mtcars$country))
+```
+Not all cars are made equal.  We can see from the above graph that the Japan, and Europe made vehicles tend to have a higher mpg and less hp, carb, cyl, disp, and wt compared with the USA counterpart. 
+
+```{r pca_plot}
+ggplotly(ggbiplot(pca, labels=rownames(mtcars), ellipse = TRUE, groups = mtcars$country, choices = c(3,4)))
+```
+
+  
+
+Let's take a look at the breakdown of countries vs. am:
+
+```{r }
+group_country_am <- mtcars %>% group_by(country, am)
+group_country_am <- dplyr::summarise(group_country_am, count=n())
+group_country_am <-melt(group_country_am, id.vars = c("country", "am"))
+ggplot(group_country_am, aes(x=country, y=value)) +
+    geom_bar(stat="identity", alpha=.9)+facet_grid(~am)+labs(title = "Country by Auto Transmission (0=AT, 1=MT)", y= "Count", x= "Country/Continent")
+```
+
+
+```{r}
+mpg_rank <- mtcars %>% arrange(desc(mpg)) %>% select(country, mpg, am) %>% mutate(am_abbr = ifelse(mtcars$am == 0, "AT", "MT"))
+
+mpg_rank %>% mutate(ranking = rank(desc(mpg),ties.method = "first"))
+```
+
+Japan has a total of 5 vehicles in our sample size and the above chart shows that 4 of Japan vehicles are part of the top 10.  
+
+```{r}
+mtcars <- mtcars %>% convert(fct(cyl,vs, am, gear, carb))
+```
 
 ### Try a simple solution
 
@@ -147,20 +199,21 @@ by(mtcars$mpg, INDICES = mtcars$am, summary)
 ```
 **Manual transmission** has a higher min and max compared to **Automatic Transmission** in our dataset. Let's create a boxplot to visualize our findings.  
 
-```{r boxplot}
-am_label <- c("AT (n=19)", "MT (n=13)")
-names(am_label) <- c("0","1")
-g<-mtcars %>% ggplot(aes(y=mpg))
+```{r boxplot, message=FALSE, error=FALSE}
+
+g<-mtcars %>% ggplot(aes(y=mpg, x=am))
 g+geom_boxplot(alpha=.3)+
-  facet_grid(~mtcars$am, labeller = labeller(am = am_label))+
+  facet_grid(~mtcars$am)+
   geom_hline(aes(yintercept = mean(mpg), col="red"))+
-  theme(legend.position = "none")
+  theme(legend.position = "none")+stat_summary(fun = mean, geom = "point",
+  colour = "blue")
 ```
 Transmission Analysis:
 
-* Mean of the total mpg = `r mpgMean`, in horizontal red line. 
-* 0 or automatic transmission mean = `r amMean[1,2]`
-* 1 or manual transmission mean = `r amMean[2,2]`
+* Red line across boxplot is the total mpg mean, **`r mpgMean`**
+* Blue point is our respective mean for AT and MT.  
+* 0 or automatic transmission mean = **`r amMean[1,2]`**
+* 1 or manual transmission mean = **`r amMean[2,2]`**
 * The mean of total mpg is greater than Automatic Transmission mean or **`r mpgMean` >  `r amMean[1,2]`**
 * The mean of the manual transmission is greater than the mean of the total mpg and is greater than the automatic transmission mpg or **`r amMean[2,2]` > `r mpgMean` > `r amMean[1,2]`**.
 
@@ -168,26 +221,24 @@ Let's review the counts of each transmission:
 
 ```{r Count of Transmission}
 by_am <- mtcars %>% group_by(am)
-summarise(by_am, count = n())
+dplyr::summarise(by_am, count = n())
 ```
-
-Answer:
-
-Manual Transmission is better than automatic transmission in fuel efficiency. We do not know enough based on this analysis.  We need to dig deeper.  
-
-###  Quantify the MPG difference between automatic and manual transmissions?
-
-Manual Transmission mpg is 7.24 mpg higher than Automatic manual transmission mpg.  We do not know what percentage belongs to AM in the difference between MT and AT.  We need to dig deeper in our analysis. 
-
-```{r difference}
+```{r difference, echo=FALSE, results='hide'}
 am_diff <-amMean[2,2]-amMean[1,2]
 am_diff
 ```
-Manual Transmission mpg is 7.24 mpg higher than Automatic manual transmission mpg.  We do not know what percentage belongs to AM in the difference between MT and AT.  We need to dig deeper in our analysis. 
 
-### Deep Dive and Challenge "simple solution"
+**Answer to question 1:**
 
-Look into all variables and see if any will help our anlysis:
+Based on the simple solution we applied, manual transmission is better than automatic transmission in fuel efficiency. We still need to keep poking our data for insights.  
+
+**Quantify the MPG difference between automatic and manual transmissions?**
+
+Manual Transmission mpg is `r am_diff` mpg higher than Automatic manual transmission mpg.  We do not know what percentage belongs to AM in the difference between MT and AT.  
+
+We need to dig deeper in our analysis and keep poking our simple solution. 
+
+### Deep Dive and Challenge "simple solution" and Build a Model
 
 Hypothesis:
 
@@ -198,8 +249,7 @@ Ha: AT mpg != MT mpg
 ```{r t.test}
 t.test(mtcars$mpg~factor(mtcars$am), paired = FALSE, var.equal = TRUE)
 ```
-There is a .0285% chance that our null hypothesis = at mpg = mt mpg, therefore, we reject the null hypothesis. The mean of AT != mean of MT. 
-
+There is a .0285% chance that our null hypothesis = MT mpg = MT mpg, therefore, we reject the null hypothesis. The mean of AT != mean of MT. 
 Let's check out the linear model:
 
 ```{r linear model}
@@ -207,15 +257,15 @@ fit <- lm(data = mtcars, mpg~factor(am))
 summary(fit)
 ```
 
-As we said before we rejected the null hypothesis and in this linear model the following are as follows:
+As we said before we rejected the null hypothesis, the linear model shows the following:
 
 1. Automatic Transmission has a mean of 17.147
 2. The 7.245 is the estimated change in the intercept of the linear relatiohship between Manual Transmission mpg1 and Automatic Transmission mpg0, going from Automatic to Manual Transmission.  Also, `r fit$coef[1]` + `r fit$coef[2]` = the mean(Manual Transmission) = `r fit$coef[1] + fit$coef[2]`
-3. The adjusted r-squared .338 which means that our model only explains 33.8% of the variance. 
+3. The adjusted r-squared `r fit$ which means that our model only explains 33.8% of the variance. 
 
 Let us review the plot and see if it is a good fit.
 
-```{r}
+```{r poking at the simple solution, message=FALSE}
 rm(list=ls())
 attach(mtcars)
 fit <- lm(am~mpg)
@@ -224,36 +274,34 @@ abline(fit, col="blue")
 lines(lowess(mpg, am), type="l", col="red")
 ```
 
-The above linear model is not a good fit the blue bar crosses the below 0 and above 1 and the redline crosses above 1. We need to find a model that fits out data.
+The above linear model is not a good fit the blue bar crosses below 0 and above 1 and the redline crosses above 1. We need to find a better model that fits out data.
 
-```{r}
-fit <- glm(data = mtcars, factor(am)~mpg, family = binomial)
-plot(mpg,am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
-lines(mpg, predict(fit, type = "response"), col="red")
+Log regression part of the GLM:
+
+```{r finding the right fit, message=FALSE}
+attach(mtcars)
+fit <- glm(factor(mtcars$am)~mtcars$mpg, family = binomial)
+plot(x=mpg,y=am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
+points(mpg,fit$fitted.values , col="red")
 ```
 
-This model is not a good fit.  It is predicting both 0 and 1 as their respective mean. Let us look at the predict function as follows:
-```{r}
-predict(fit)
+Exponentiated coefficient.
+```{r exponentiated slope}
+exp(fit$coefficients)
 ```
 
-We need a log regression model under glm function. 
+The first line shows the exponentiated slope coefficient is 1.36. We estimate a 36% increase in odds that the transmission is manual transmission per 1 mpg increase.  
 
 ```{r}
-fit2 <- glm(data=mtcars, factor(am)~mpg, family = "binomial")
-summary(fit2)
+fit <- glm(factor(mtcars$am)~mtcars$mpg, family = binomial)
+summary(fit)
 ```
 
+The above model has an AIC of `r fit$aic` similar to the R-squared. Which means our model only accounts for 33.675% of the deviance. We need a better model.   
 
-```{r}
-ggplot(data = mtcars, aes(mpg, factor(am)))+geom_point()+geom_smooth(method = "glm", method.args=list(family="binomial"), formula = mtcars$am~mtcars$mpg, aes(weight=cyl))
+### Model Selection
 
-```
-
-```{r}
-predict(fit)
-```
-
+Nested Model. 
 
 1. mpg: Miles/(US) gallon
 2. cyl: Number of cylinders
@@ -267,12 +315,26 @@ predict(fit)
 10. gear: Number of forward gears
 11. carb: Number of carburetors
 
+Let's scale down are data
 ```{r}
-
+scale_mtcars <- data.frame(scale(mtcars))
+fit1 <- lm(data = scale_mtcars, mpg~factor(am))
+fit2 <- update(fit1, mpg~factor(am)+disp+hp)
+fit3 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt)
+fit4 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs))
+fit5 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs)+factor(cyl)+factor(gear)+factor(carb))
+anova(fit1, fit2, fit3, fit4, fit5)
 ```
 
+Model 2 and Model 3 seems to be a good candidate. Let us look deeper on model three and see if there is something we are missing.  
 
 ```{r}
-#heatmap(as.matrix(mtcars))
+fit1 <- lm(data = mtcars, mpg~factor(am))
+fit2 <- update(fit1, mpg~factor(am)+disp+hp)
+fit3 <- update(fit1, mpg~factor(am)+disp+hp+wt)
+fit4 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs))
+fit5 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs)+factor(cyl)+factor(gear)+factor(carb))
+anova(fit1, fit2, fit3, fit4, fit5)
 ```
+
 
