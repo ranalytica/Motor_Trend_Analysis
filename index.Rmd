@@ -2,7 +2,10 @@
 title: "1973-1974 Motor Trends Dataset Analysis"
 author: "Richard Nacianceno"
 date: "6/4/2020"
-output: html_document
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ```{r Environment, message=FALSE}
@@ -78,7 +81,6 @@ A few opportunities I see in the above output are as follows:
 Using str() provides us with a quick and powerful way in analyzing our data and making it more tidy.
 
 ```{r change datatype}
-
 str(mtcars)
 ```
 
@@ -89,6 +91,7 @@ Analyze missing data and have a strategy in imputing missing datasets.
 naAnalysis <- mtcars %>%
     purrr::map_df(function(x) round(mean(is.na(x)),digits = 2)*100) %>%
     gather(EVType, naAverage)
+
 naAnalysis %>% ggplot(aes(x = EVType, y = naAverage)) %>% +
   geom_point(aes(reorder(EVType, naAverage))) + theme(axis.text.x =
               element_text(angle = 90, hjust = .1)) + labs(x = "Event Type", 
@@ -104,9 +107,21 @@ Based on our analysis there are no missing data in all our variables and no need
 Also, we added another variable called countryGroup in mtcars which shows the country or continent they were made (personal assumption).
 
 ```{r mpg summary}
-countryGroup <-c(rep("JAPAN", 3), rep("USA",4), rep("EUROPE", 7),rep("USA",3), "EUROPE", rep("JAPAN", 3), rep("USA",4), rep("EUROPE", 3), "USA", rep("EUROPE", 3))
+countryGroup <-
+  c(
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 7),
+    rep("USA", 3),
+    "EUROPE",
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 3),
+    "USA",
+    rep("EUROPE", 3)
+  )
 mtcars$country <- countryGroup
-quantile(mtcars$mpg, seq(0,1,0.1))
+quantile(mtcars$mpg, seq(0, 1, 0.1))
 ```
 
 Above table, we zoomed-in our data using quantile function. If we are to add external dataset of **39.4 mpg** in mtcars dataset, this becomes the new max and a complete outlier. 
@@ -133,13 +148,13 @@ Continue on the EDA...
 Let's review the relationship of variables to our vehicles:
 
 ```{r Principle Componnet Analysis}
-pca <- prcomp(mtcars[, c(1:7,10,11)],center = TRUE, scale. = TRUE)
-pca_x_df<- data.frame(pca[["x"]])
+pca <- prcomp(mtcars[, c(1:7, 10, 11)], center = TRUE, scale. = TRUE)
+pca_x_df <- data.frame(pca[["x"]])
 pca_name <- colnames(pca_x_df)
-pca.var <- pca$sdev^2
-pca.var.per <- round(pca.var/sum(pca.var)*100, 1)
-pca_df <- data.frame(name=pca_name,pca_percent =pca.var.per)
-pca_df %>% ggplot(aes(x=name, y=pca_percent)) + geom_col()
+pca.var <- pca$sdev ^ 2
+pca.var.per <- round(pca.var / sum(pca.var) * 100, 1)
+pca_df <- data.frame(name = pca_name, pca_percent = pca.var.per)
+pca_df %>% ggplot(aes(x = name, y = pca_percent)) + geom_col()
 ```
 
 ```{r PCA Summary}
@@ -147,38 +162,62 @@ summary(pca)
 ```
 
 ```{r Plot PCA}
-ggplotly(ggbiplot(pca, labels=rownames(mtcars), ellipse = TRUE, groups = mtcars$country))
+#pca <- prcomp(mtcars[, c(1:7,10,11)],center = TRUE, scale. = TRUE)
+pca_g <-
+  ggplotly(
+    ggbiplot(
+      pca,
+      labels = rownames(mtcars),
+      obs.scale = .5,
+      var.scale = .5,
+      ellipse = TRUE,
+      groups = mtcars$country
+    )
+  )
+pca_g
 ```
-Not all cars are made equal.  We can see from the above graph that the Japan, and Europe made vehicles tend to have a higher mpg and less hp, carb, cyl, disp, and wt compared with the USA counterpart. 
+Not all cars are made equal.  We can see from the above graph that the Japan, and Europe made vehicles tend to have a higher mpg and less hp, cyl, disp, and wt compared with the USA counterpart. 
+
+Let's review PCA3 and PCA4.  
 
 ```{r pca_plot}
-ggplotly(ggbiplot(pca, labels=rownames(mtcars), ellipse = TRUE, groups = mtcars$country, choices = c(3,4)))
+ggplotly(
+  ggbiplot(
+    pca,
+    labels = rownames(mtcars),
+    obs.scale = .5,
+    var.scale = .5,
+    ellipse = TRUE,
+    groups = mtcars$country,
+    choices = c(3, 4)
+  )
+)
 ```
 
-  
+The above chart, does not show enough information which makes sense because of the small percentage of the total variation. We could not see a good pattern or grouping in this chart.     
 
 Let's take a look at the breakdown of countries vs. am:
 
 ```{r }
 group_country_am <- mtcars %>% group_by(country, am)
-group_country_am <- dplyr::summarise(group_country_am, count=n())
-group_country_am <-melt(group_country_am, id.vars = c("country", "am"))
-ggplot(group_country_am, aes(x=country, y=value)) +
-    geom_bar(stat="identity", alpha=.9)+facet_grid(~am)+labs(title = "Country by Auto Transmission (0=AT, 1=MT)", y= "Count", x= "Country/Continent")
+group_country_am <- dplyr::summarise(group_country_am, count = n())
+group_country_am <-
+  melt(group_country_am, id.vars = c("country", "am"))
+ggplot(group_country_am, aes(x = country, y = value)) +
+  geom_bar(stat = "identity", alpha = .9) + facet_grid( ~ am) + labs(title = "Country by Auto Transmission (0=AT, 1=MT)", y = "Count", x = "Country/Continent")
 ```
 
 
 ```{r}
-mpg_rank <- mtcars %>% arrange(desc(mpg)) %>% select(country, mpg, am) %>% mutate(am_abbr = ifelse(mtcars$am == 0, "AT", "MT"))
+mpg_rank <-
+  mtcars %>% arrange(desc(mpg)) %>% select(country, mpg, am) %>% mutate(am_abbr = ifelse(mtcars$am == 0, "AT", "MT"))
 
-mpg_rank %>% mutate(ranking = rank(desc(mpg),ties.method = "first"))
+top10 <-
+  mpg_rank %>% mutate(ranking = rank(desc(mpg), ties.method = "first"))
+top10 <- top10 %>% select(country, mpg, am_abbr, ranking) 
 ```
 
-Japan has a total of 5 vehicles in our sample size and the above chart shows that 4 of Japan vehicles are part of the top 10.  
-
-```{r}
-mtcars <- mtcars %>% convert(fct(cyl,vs, am, gear, carb))
-```
+Japan has a total of 5 vehicles in our sample size and the above chart shows that 4 of Japanese vehicles are part of the top 10.   
 
 ### Try a simple solution
 
@@ -189,7 +228,7 @@ Data set description of "am", from ?mtcars:
 * 0 = automatic transmission
 * 1 = manual transmission
 ```{r Mean of Each Transmission}
-amMean <-summarise(group_by(mtcars, AM=as.factor(am)),MN=mean(mpg))
+amMean <- summarise(group_by(mtcars, AM = as.factor(am)), MN = mean(mpg))
 mpgMean <- mean(mtcars$mpg)
 amMean
 ```
@@ -201,12 +240,12 @@ by(mtcars$mpg, INDICES = mtcars$am, summary)
 
 ```{r boxplot, message=FALSE, error=FALSE}
 
-g<-mtcars %>% ggplot(aes(y=mpg, x=am))
-g+geom_boxplot(alpha=.3)+
-  facet_grid(~mtcars$am)+
-  geom_hline(aes(yintercept = mean(mpg), col="red"))+
-  theme(legend.position = "none")+stat_summary(fun = mean, geom = "point",
-  colour = "blue")
+g <- mtcars %>% ggplot(aes(y = mpg, x = am))
+g + geom_boxplot(alpha = .3) +
+  facet_grid( ~ mtcars$am) +
+  geom_hline(aes(yintercept = mean(mpg), col = "red")) +
+  theme(legend.position = "none") + stat_summary(fun = mean, geom = "point",
+                                                 colour = "blue")
 ```
 Transmission Analysis:
 
@@ -224,7 +263,7 @@ by_am <- mtcars %>% group_by(am)
 dplyr::summarise(by_am, count = n())
 ```
 ```{r difference, echo=FALSE, results='hide'}
-am_diff <-amMean[2,2]-amMean[1,2]
+am_diff <- amMean[2, 2] - amMean[1, 2]
 am_diff
 ```
 
@@ -247,13 +286,15 @@ H0: AT mpg = MT mpg; There is no difference in fuel efficiency between Automatic
 Ha: AT mpg != MT mpg
 
 ```{r t.test}
-t.test(mtcars$mpg~factor(mtcars$am), paired = FALSE, var.equal = TRUE)
+t.test(mtcars$mpg ~ factor(mtcars$am),
+       paired = FALSE,
+       var.equal = TRUE)
 ```
 There is a .0285% chance that our null hypothesis = MT mpg = MT mpg, therefore, we reject the null hypothesis. The mean of AT != mean of MT. 
 Let's check out the linear model:
 
 ```{r linear model}
-fit <- lm(data = mtcars, mpg~factor(am))
+fit <- lm(data = mtcars, mpg ~ factor(am))
 summary(fit)
 ```
 
@@ -266,12 +307,16 @@ As we said before we rejected the null hypothesis, the linear model shows the fo
 Let us review the plot and see if it is a good fit.
 
 ```{r poking at the simple solution, message=FALSE}
-rm(list=ls())
+rm(list = ls())
 attach(mtcars)
-fit <- lm(am~mpg)
-plot(mpg,am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
-abline(fit, col="blue")
-lines(lowess(mpg, am), type="l", col="red")
+fit <- lm(am ~ mpg)
+plot(mpg,
+     am,
+     frame.plot = FALSE,
+     xlab = "MPG",
+     ylab = "Transmission type (0=AT, 1=MT)")
+abline(fit, col = "blue")
+lines(lowess(mpg, am), type = "l", col = "red")
 ```
 
 The above linear model is not a good fit the blue bar crosses below 0 and above 1 and the redline crosses above 1. We need to find a better model that fits out data.
@@ -279,10 +324,16 @@ The above linear model is not a good fit the blue bar crosses below 0 and above 
 Log regression part of the GLM:
 
 ```{r finding the right fit, message=FALSE}
-attach(mtcars)
-fit <- glm(factor(mtcars$am)~mtcars$mpg, family = binomial)
-plot(x=mpg,y=am, frame.plot = FALSE, xlab = "MPG", ylab = "Transmission type (0=AT, 1=MT)")
-points(mpg,fit$fitted.values , col="red")
+
+fit <- glm(factor(mtcars$am) ~ mtcars$mpg, family = binomial)
+plot(
+  x = mpg,
+  y = am,
+  frame.plot = FALSE,
+  xlab = "MPG",
+  ylab = "Transmission type (0=AT, 1=MT)"
+)
+points(mpg, fit$fitted.values , col = "red")
 ```
 
 Exponentiated coefficient.
@@ -315,26 +366,103 @@ Nested Model.
 10. gear: Number of forward gears
 11. carb: Number of carburetors
 
-Let's scale down are data
+**Update the datatype and scale the data:**
 ```{r}
+data(mtcars)
 scale_mtcars <- data.frame(scale(mtcars))
-fit1 <- lm(data = scale_mtcars, mpg~factor(am))
-fit2 <- update(fit1, mpg~factor(am)+disp+hp)
-fit3 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt)
-fit4 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs))
-fit5 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs)+factor(cyl)+factor(gear)+factor(carb))
+fit1 <- lm(data = scale_mtcars, mpg ~ factor(am))
+fit2 <- update(fit1, mpg ~ factor(am) + disp + hp)
+fit3 <- update(fit1, mpg ~ factor(am) + disp + hp + drat + wt)
+fit4 <- update(fit1, mpg ~ factor(am) + disp + hp + drat + wt + qsec + factor(vs))
+fit5 <-
+  update(
+    fit1,
+    mpg ~ factor(am) + disp + hp + drat + wt + qsec + factor(vs) + factor(cyl) +
+      factor(gear) + factor(carb)
+  )
 anova(fit1, fit2, fit3, fit4, fit5)
 ```
 
 Model 2 and Model 3 seems to be a good candidate. Let us look deeper on model three and see if there is something we are missing.  
 
+
+
+The best fit is fit2 and fit3.  Let's examine it closely.
+
 ```{r}
-fit1 <- lm(data = mtcars, mpg~factor(am))
-fit2 <- update(fit1, mpg~factor(am)+disp+hp)
-fit3 <- update(fit1, mpg~factor(am)+disp+hp+wt)
-fit4 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs))
-fit5 <- update(fit1, mpg~factor(am)+disp+hp+drat+wt+qsec+factor(vs)+factor(cyl)+factor(gear)+factor(carb))
-anova(fit1, fit2, fit3, fit4, fit5)
+summary(fit3)
 ```
+
+
+```{r message = FALSE, warning=FALSE}
+library(olsrr)
+data(mtcars)
+model <- lm(data = mtcars, mpg ~ factor(am) + .)
+find_model <- ols_step_all_possible(model)
+find_model %>% filter(rank(desc(adjr), ties.method = "first") <= 10)
+```
+
+The above table, shows us the best model. Let's go ahead and see how it looks. 
+
+```{r}
+bestfit <- lm(data = mtcars, mpg ~ factor(am) + hp + wt + qsec)
+
+plot(bestfit)
+summary(bestfit)
+
+```
+
+```{r}
+exp(bestfit$coeff)
+```
+
+
+```{r}
+exp(confint(bestfit))
+```
+
+
+```{r echo=FALSE}
+data(mtcars)
+countryGroup <-
+  c(
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 7),
+    rep("USA", 3),
+    "EUROPE",
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 3),
+    "USA",
+    rep("EUROPE", 3)
+  )
+mtcars$country <- countryGroup
+pca <- prcomp(mtcars[, c(1:7, 10, 11)], center = TRUE, scale. = TRUE)
+pca_g <-
+  ggplotly(
+    ggbiplot(
+      pca,
+      labels = rownames(mtcars),
+      obs.scale = .5,
+      var.scale = .5,
+      ellipse = TRUE,
+      groups = mtcars$country
+    )
+  )
+pca_g
+```
+**Conclusion**
+
+When we combine our PCA1/PCA2 graph and bestfit model, we can see the following:
+
+* Japanese cars are lighter and more fuel efficient
+* Engineers in different countries and continent seem to have a different approach their technology
+* Cars have a different marketing strategy in their respective countries/continent
+    - USA emphasizes on horspower, cylinder, weigth and disp (I don't know what this is).  
+    - Europe seems to have a more broader approach since it is the whole continent of Europe. 
+    - Japanese market is geared towards fuel efficiency, less weight, less horse power, less carb, less cyclinder, and less disp (negative relationship). 
+    
+
 
 
