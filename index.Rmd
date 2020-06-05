@@ -3,10 +3,13 @@ title: "1973-1974 Motor Trends Dataset Analysis"
 author: "Richard Nacianceno"
 date: "6/4/2020"
 output:
-  html_document:
+  html_document: 
     df_print: paged
   pdf_document: default
 ---
+![Github](./Octocat.png) [view mycode](https://github.com/ranalytica/Motor_Trend_Analysis){target="_blank"}
+
+[rpub link](https://rpubs.com/Ranalytica/MotorTrend)
 
 ```{r Environment, message=FALSE}
 library(tidyverse)
@@ -17,6 +20,19 @@ library(plotly)
 library(ggbiplot) # installation library(devtools); install_github("vqv/ggbiplot")
 sessionInfo()
 ```
+
+## Executive Summary
+
+In this report, we will analyze the mtcars dataset and evaluate the relationship of mpg and auto transmission (automatic/manual).  We will also deep dive other variables that affects fuel efficiency such as weight of the vehicle, horsepower, qsec 1/4 mile performance test run and many others in the dataset. We will also use a package called olsrr. This tool made it easier to cycle combinations and patterns for ordinary least squares regression models and combined it with principle component analysis (prcomp). We obtained and use the highest adjusted Rsquared to find our model.   
+
+This two model selection (olsrr and pca) gave us insight on the following:
+
+* Japanese cars are lighter and more fuel efficient
+* Engineers in different countries and continent seem to have a different approach their technology
+* Cars have a different marketing strategy in their respective countries/continent
+    - USA emphasizes on horspower, cylinder, weigth and disp (I don't know what this is).  
+    - Europe seems to have a more broader approach since it is the whole continent of Europe. 
+    - Japanese market is geared towards fuel efficiency, less weight, less horse power, less carb, less cyclinder, and less disp (negative relationship). 
 
 ## Dataset History
 
@@ -50,25 +66,6 @@ data(mtcars)
 
 ### Check the Packaging
 
-Poke at the dataset. Ensure there are no errors on the given dataset. Check the top and bottom of the datasets.   
-```{r head and tail}
-head(mtcars)
-tail(mtcars)
-# view(mtcars)
-```
-Keep poking at it.  
-```{r obs}
-nrow(mtcars)
-names(mtcars)
-```
-
-```{r variables}
-ncol(mtcars)
-rownames(mtcars)
-```
-
-### Run str()
-
 This is a fast operation that provides us with the number of obersvations and variables, with their respective datatypes.  We can quickly analyze opportunities that we can see using str(). 
 ```{r datatype}
 str(mtcars)
@@ -79,26 +76,6 @@ A few opportunities I see in the above output are as follows:
 * Variables cyl, vs, am, gear, carb are **potential** factor types
 
 Using str() provides us with a quick and powerful way in analyzing our data and making it more tidy.
-
-```{r change datatype}
-str(mtcars)
-```
-
-### Missing Data Analysis
-
-Analyze missing data and have a strategy in imputing missing datasets. 
-```{r NA analysis}
-naAnalysis <- mtcars %>%
-    purrr::map_df(function(x) round(mean(is.na(x)),digits = 2)*100) %>%
-    gather(EVType, naAverage)
-
-naAnalysis %>% ggplot(aes(x = EVType, y = naAverage)) %>% +
-  geom_point(aes(reorder(EVType, naAverage))) + theme(axis.text.x =
-              element_text(angle = 90, hjust = .1)) + labs(x = "Event Type", 
-              y = "NA Average  (%)", title = "Missing Data Analysis")
-```
-
-Based on our analysis there are no missing data in all our variables and no need to impute missing data.  
 
 ### Validate with at least one external data source
 
@@ -157,44 +134,38 @@ pca_df <- data.frame(name = pca_name, pca_percent = pca.var.per)
 pca_df %>% ggplot(aes(x = name, y = pca_percent)) + geom_col()
 ```
 
-```{r PCA Summary}
-summary(pca)
-```
-
 ```{r Plot PCA}
 #pca <- prcomp(mtcars[, c(1:7,10,11)],center = TRUE, scale. = TRUE)
 pca_g <-
-  ggplotly(
-    ggbiplot(
+  
+    ggplotly(ggbiplot(
       pca,
       labels = rownames(mtcars),
       obs.scale = .5,
       var.scale = .5,
       ellipse = TRUE,
       groups = mtcars$country
-    )
-  )
+    ))
+  
 pca_g
 ```
 Not all cars are made equal.  We can see from the above graph that the Japan, and Europe made vehicles tend to have a higher mpg and less hp, cyl, disp, and wt compared with the USA counterpart. 
 
-Let's review PCA3 and PCA4.  
+Let's review PCA3 and PCA4:
 
-```{r pca_plot}
-ggplotly(
-  ggbiplot(
-    pca,
-    labels = rownames(mtcars),
-    obs.scale = .5,
-    var.scale = .5,
-    ellipse = TRUE,
-    groups = mtcars$country,
-    choices = c(3, 4)
-  )
-)
+```{r}
+   ggplotly(ggbiplot(
+      pca,
+      labels = rownames(mtcars),
+      obs.scale = .5,
+      var.scale = .5,
+      ellipse = TRUE, 
+      choices = c(3,4),
+      groups = mtcars$country
+    ))
 ```
 
-The above chart, does not show enough information which makes sense because of the small percentage of the total variation. We could not see a good pattern or grouping in this chart.     
+It's hard to see any insight from the above because of the small percentage.  
 
 Let's take a look at the breakdown of countries vs. am:
 
@@ -214,7 +185,7 @@ mpg_rank <-
 
 top10 <-
   mpg_rank %>% mutate(ranking = rank(desc(mpg), ties.method = "first"))
-top10 <- top10 %>% select(country, mpg, am_abbr, ranking) 
+head(top10 %>% select(country, mpg, am_abbr, ranking) )
 ```
 
 Japan has a total of 5 vehicles in our sample size and the above chart shows that 4 of Japanese vehicles are part of the top 10.   
@@ -262,6 +233,7 @@ Let's review the counts of each transmission:
 by_am <- mtcars %>% group_by(am)
 dplyr::summarise(by_am, count = n())
 ```
+
 ```{r difference, echo=FALSE, results='hide'}
 am_diff <- amMean[2, 2] - amMean[1, 2]
 am_diff
@@ -397,28 +369,66 @@ summary(fit3)
 ```{r message = FALSE, warning=FALSE}
 library(olsrr)
 data(mtcars)
-model <- lm(data = mtcars, mpg ~ factor(am) + .)
+model <- lm(data = mtcars, mpg ~ factor(am): + .)
 find_model <- ols_step_all_possible(model)
-find_model %>% filter(rank(desc(adjr), ties.method = "first") <= 10)
+head(find_model %>% filter(rank(desc(adjr), ties.method = "first") <= 10))
 ```
 
 The above table, shows us the best model. Let's go ahead and see how it looks. 
 
 ```{r}
-bestfit <- lm(data = mtcars, mpg ~ factor(am) + hp + wt + qsec)
+data(mtcars)
+countryGroup <-
+  c(
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 7),
+    rep("USA", 3),
+    "EUROPE",
+    rep("JAPAN", 3),
+    rep("USA", 4),
+    rep("EUROPE", 3),
+    "USA",
+    rep("EUROPE", 3)
+  )
+mtcars$country <- countryGroup
+bestfit <- lm(data = mtcars, mpg ~ factor(am):wt+ factor(am):hp + factor(am):qsec+ factor(am):factor(vs)+ factor(am):factor(gear)+ factor(am):carb+ factor(am):country)
+```
 
+
+```{r message=FALSE}
 plot(bestfit)
-summary(bestfit)
+```
 
+## Coefficient Explanation
+
+```{r echo=FALSE}
+Description <-
+  c(
+    "intercept",
+    "not that significant",
+    "1k lbs increase = -10.69 mpg",
+    "1hp has 11% odds of increasing mpg",
+    "not significant",
+    "53% odds decr mpg every 1 sec decr in qsec",
+    "2% odds incr mpg every 4 sec incr qsec",
+    "has positive impact on mpg",
+    "negative impact on mpg",
+    "positive impact on mpg",
+    "negative impact on mpg",
+    "NA",
+    "negative impact on mpg",
+    "negative impact on mpg",
+    rep("not significant", 3),
+    "negative impact on MPG",
+    "not significant"
+  )
+bestfit_reason <- data.frame(bestfit$coeff)
+cbind(bestfit_reason, Description)
 ```
 
 ```{r}
-exp(bestfit$coeff)
-```
-
-
-```{r}
-exp(confint(bestfit))
+confint(bestfit)
 ```
 
 
@@ -440,8 +450,7 @@ countryGroup <-
 mtcars$country <- countryGroup
 pca <- prcomp(mtcars[, c(1:7, 10, 11)], center = TRUE, scale. = TRUE)
 pca_g <-
-  ggplotly(
-    ggbiplot(
+      ggplotly(ggbiplot(
       pca,
       labels = rownames(mtcars),
       obs.scale = .5,
@@ -449,7 +458,7 @@ pca_g <-
       ellipse = TRUE,
       groups = mtcars$country
     )
-  )
+      )
 pca_g
 ```
 **Conclusion**
